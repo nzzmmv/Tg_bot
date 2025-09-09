@@ -9,7 +9,7 @@ user_lang = {}
 user_state = {}
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def register_handlers(bot):
     @bot.message_handler(commands=["start"])
@@ -44,7 +44,27 @@ def register_handlers(bot):
     @bot.message_handler(func=lambda message: user_state.get(message.from_user.id) == "gemini_chat")
     def handle_gemini_chat(message: types.Message):
         try:
-            response = model.generate_content(message.text)
+            lang = user_lang.get(message.from_user.id, "ru")
+            
+            # Prepare the knowledge base from DATA
+            knowledge_base = ""
+            if lang in DATA:
+                for key, value in DATA[lang].items():
+                    # Clean up the key to be more readable if needed, e.g., 'learning_1' -> 'learning 1'
+                    # For now, we'll just use the value
+                    knowledge_base += f"- {value}\n"
+
+            system_prompt = (
+                "You are an assistant for our educational center. "
+                "You must only answer questions related to our center using the information provided below. "
+                "If the user asks about any other topic, you must politely decline. "
+                "If you don't know the answer from the provided information, say that you don't have that information."
+                "\n--- Information Base ---\n"
+                f"{knowledge_base}"
+                "\n------------------------\n"
+            )
+            
+            response = model.generate_content(system_prompt + "\n\nUser question: " + message.text)
             bot.send_message(message.chat.id, response.text)
         except Exception as e:
             bot.send_message(message.chat.id, "Произошла ошибка при обработке вашего запроса.")
