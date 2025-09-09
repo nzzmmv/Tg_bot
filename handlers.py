@@ -96,6 +96,16 @@ def register_handlers(bot):
         lang = user_lang.get(message.from_user.id, "ru")
         send_main_menu(message.chat.id, lang, bot)
 
+    @bot.message_handler(commands=['refresh'])
+    def refresh(message: types.Message):
+        uid = message.from_user.id
+        # Clear all user-specific data
+        user_lang.pop(uid, None)
+        user_state.pop(uid, None)
+        user_chats.pop(uid, None)
+        # Send the initial language selection menu
+        start(message)
+
     @bot.callback_query_handler(
         func=lambda c: (
                 "_" in c.data
