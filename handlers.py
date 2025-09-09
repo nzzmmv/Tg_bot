@@ -69,14 +69,23 @@ def register_handlers(bot):
         except Exception as e:
             bot.send_message(message.chat.id, "Произошла ошибка при обработке вашего запроса.")
 
-    @bot.message_handler(commands=["cancel"])
+    @bot.message_handler(commands=["cancel", "clear_chat"])
     def cancel_chat(message: types.Message):
         uid = message.from_user.id
         if user_state.get(uid) == "gemini_chat":
             user_state.pop(uid, None)
             lang = user_lang.get(uid, "ru")
-            bot.send_message(message.chat.id, "Вы вышли из режима чата с AI.")
+            command = message.text.strip().lower()
+            if command == '/clear_chat':
+                bot.send_message(message.chat.id, "Чат очищен и вы вышли из режима чата с AI.")
+            else:
+                bot.send_message(message.chat.id, "Вы вышли из режима чата с AI.")
             send_main_menu(message.chat.id, lang, bot)
+
+    @bot.message_handler(commands=['menu'])
+    def menu(message: types.Message):
+        lang = user_lang.get(message.from_user.id, "ru")
+        send_main_menu(message.chat.id, lang, bot)
 
     @bot.callback_query_handler(
         func=lambda c: (
