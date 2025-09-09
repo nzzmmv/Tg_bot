@@ -94,6 +94,7 @@ def register_handlers(bot):
             else:
                 bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, начните чат снова.")
         except Exception as e:
+            print(f"Error in handle_gemini_chat: {e}") # For debugging
             bot.send_message(message.chat.id, "Произошла ошибка при обработке вашего запроса.")
 
     @bot.message_handler(commands=["cancel", "clear_chat"])
