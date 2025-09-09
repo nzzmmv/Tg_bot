@@ -11,7 +11,8 @@ user_chats = {}
 user_gemini_message_count = {}
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.0-flash')
+# print(genai.list_models())
 
 def register_handlers(bot):
     @bot.message_handler(commands=["start"])
@@ -80,7 +81,9 @@ def register_handlers(bot):
             chat_session = user_chats.get(uid)
             if chat_session:
                 bot.send_chat_action(message.chat.id, 'typing') # Send typing action
+                waiting_message = bot.send_message(message.chat.id, "Пожалуйста, подождите, ваш запрос обрабатывается...")
                 response = chat_session.send_message(message.text)
+                bot.delete_message(message.chat.id, waiting_message.message_id)
                 bot.send_message(message.chat.id, response.text)
 
                 # Increment message count
