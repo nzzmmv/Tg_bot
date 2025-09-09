@@ -79,6 +79,7 @@ def register_handlers(bot):
         try:
             chat_session = user_chats.get(uid)
             if chat_session:
+                bot.send_chat_action(message.chat.id, 'typing') # Send typing action
                 response = chat_session.send_message(message.text)
                 bot.send_message(message.chat.id, response.text)
 
