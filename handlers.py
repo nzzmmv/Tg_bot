@@ -1,8 +1,15 @@
-from telebot import types
+import telebot # type: ignore
+from telebot import types # type: ignore
+import google.generativeai as genai
 from data import CATEGORIES, DATA
 from keyboards import send_main_menu, show_submenu
+from config import GEMINI_API_KEY
 
 user_lang = {}
+user_state = {}
+
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-pro')
 
 def register_handlers(bot):
     @bot.message_handler(commands=["start"])
@@ -22,13 +29,34 @@ def register_handlers(bot):
         send_main_menu(call.message.chat.id, user_lang[uid], bot)
         bot.answer_callback_query(call.id)
 
-    @bot.callback_query_handler(func=lambda c: c.data in CATEGORIES)
+    @bot.callback_query_handler(func=lambda c: c.data in CATEGORIES or c.data == "gemini_chat")
     def on_category_pick(call: types.CallbackQuery):
         uid = call.from_user.id
         lang = user_lang.get(uid, "ru")
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-        show_submenu(call.message.chat.id, lang, call.data, bot)
+        if call.data == "gemini_chat":
+            user_state[uid] = "gemini_chat"
+            bot.send_message(call.message.chat.id, "Вы вошли в режим чата с AI. Задайте свой вопрос. Для выхода введите /cancel")
+        else:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            show_submenu(call.message.chat.id, lang, call.data, bot)
         bot.answer_callback_query(call.id)
+
+    @bot.message_handler(func=lambda message: user_state.get(message.from_user.id) == "gemini_chat")
+    def handle_gemini_chat(message: types.Message):
+        try:
+            response = model.generate_content(message.text)
+            bot.send_message(message.chat.id, response.text)
+        except Exception as e:
+            bot.send_message(message.chat.id, "Произошла ошибка при обработке вашего запроса.")
+
+    @bot.message_handler(commands=["cancel"])
+    def cancel_chat(message: types.Message):
+        uid = message.from_user.id
+        if user_state.get(uid) == "gemini_chat":
+            user_state.pop(uid, None)
+            lang = user_lang.get(uid, "ru")
+            bot.send_message(message.chat.id, "Вы вышли из режима чата с AI.")
+            send_main_menu(message.chat.id, lang, bot)
 
     @bot.callback_query_handler(
         func=lambda c: (

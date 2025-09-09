@@ -1,4 +1,4 @@
-from telebot import types
+from telebot import types # type: ignore
 
 MAIN_MENU_TEXT = {
     "ru": {
@@ -8,6 +8,7 @@ MAIN_MENU_TEXT = {
             "events": "🎉 Мероприятия",
             "center": "📍 Центр",
             "students": "📑 Для студентов",
+            "gemini_chat": "🤖 Задать вопрос AI",
         }
     },
     "tg": {
@@ -17,6 +18,7 @@ MAIN_MENU_TEXT = {
             "events": "🎉 Фаъолиятҳо",
             "center": "📍 Марказ",
             "students": "📑 Барои донишҷӯён",
+            "gemini_chat": "🤖 Савол додан ба AI",
         }
     }
 }
