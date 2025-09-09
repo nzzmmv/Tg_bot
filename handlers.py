@@ -7,6 +7,7 @@ from config import GEMINI_API_KEY
 
 user_lang = {}
 user_state = {}
+user_chats = {}
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -34,24 +35,10 @@ def register_handlers(bot):
         uid = call.from_user.id
         lang = user_lang.get(uid, "ru")
         if call.data == "gemini_chat":
-            user_state[uid] = "gemini_chat"
-            bot.send_message(call.message.chat.id, "Вы вошли в режим чата с AI. Задайте свой вопрос. Для выхода введите /cancel")
-        else:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-            show_submenu(call.message.chat.id, lang, call.data, bot)
-        bot.answer_callback_query(call.id)
-
-    @bot.message_handler(func=lambda message: user_state.get(message.from_user.id) == "gemini_chat")
-    def handle_gemini_chat(message: types.Message):
-        try:
-            lang = user_lang.get(message.from_user.id, "ru")
-            
             # Prepare the knowledge base from DATA
             knowledge_base = ""
             if lang in DATA:
                 for key, value in DATA[lang].items():
-                    # Clean up the key to be more readable if needed, e.g., 'learning_1' -> 'learning 1'
-                    # For now, we'll just use the value
                     knowledge_base += f"- {value}\n"
 
             system_prompt = (
@@ -63,9 +50,30 @@ def register_handlers(bot):
                 f"{knowledge_base}"
                 "\n------------------------\n"
             )
-            
-            response = model.generate_content(system_prompt + "\n\nUser question: " + message.text)
-            bot.send_message(message.chat.id, response.text)
+
+            chat_history = [
+                {'role': 'user', 'parts': [system_prompt]},
+                {'role': 'model', 'parts': ["Okay, I am ready. I will only answer questions based on the provided information about the educational center."]}
+            ]
+
+            chat_session = model.start_chat(history=chat_history)
+            user_chats[uid] = chat_session
+            user_state[uid] = "gemini_chat"
+            bot.send_message(call.message.chat.id, "Вы вошли в режим чата с AI. Задайте свой вопрос. Для выхода введите /cancel или /clear_chat")
+        else:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            show_submenu(call.message.chat.id, lang, call.data, bot)
+        bot.answer_callback_query(call.id)
+
+    @bot.message_handler(func=lambda message: user_state.get(message.from_user.id) == "gemini_chat")
+    def handle_gemini_chat(message: types.Message):
+        try:
+            chat_session = user_chats.get(message.from_user.id)
+            if chat_session:
+                response = chat_session.send_message(message.text)
+                bot.send_message(message.chat.id, response.text)
+            else:
+                bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, начните чат снова.")
         except Exception as e:
             bot.send_message(message.chat.id, "Произошла ошибка при обработке вашего запроса.")
 
@@ -74,6 +82,7 @@ def register_handlers(bot):
         uid = message.from_user.id
         if user_state.get(uid) == "gemini_chat":
             user_state.pop(uid, None)
+            user_chats.pop(uid, None)  # Clear chat history
             lang = user_lang.get(uid, "ru")
             command = message.text.strip().lower()
             if command == '/clear_chat':
