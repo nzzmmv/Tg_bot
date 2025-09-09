@@ -8,6 +8,7 @@ from config import GEMINI_API_KEY
 user_lang = {}
 user_state = {}
 user_chats = {}
+user_gemini_message_count = {}
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -15,12 +16,17 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 def register_handlers(bot):
     @bot.message_handler(commands=["start"])
     def start(message: types.Message):
+        welcome_text = (
+            "Welcome to the helper bot for the Sejong Institute Center in Dushanbe!\n\n"
+            "Добро пожаловать в бот-помощник Центра Института Седжон в Душанбе!\n\n"
+            "Выберите язык / Select language:"
+        )
         kb = types.InlineKeyboardMarkup(row_width=2)
         kb.add(
             types.InlineKeyboardButton("🇹🇯 Таджикский", callback_data="lang_tg"),
             types.InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
         )
-        bot.send_message(message.chat.id, "Выберите язык:", reply_markup=kb)
+        bot.send_message(message.chat.id, welcome_text, reply_markup=kb)
 
     @bot.callback_query_handler(func=lambda c: c.data in {"lang_tg", "lang_ru"})
     def on_lang_pick(call: types.CallbackQuery):
@@ -46,6 +52,7 @@ def register_handlers(bot):
                 "You must only answer questions related to our center using the information provided below. "
                 "If the user asks about any other topic, you must politely decline. "
                 "If you don't know the answer from the provided information, say that you don't have that information."
+                "You can answer in Russian, English or Korean based on the user's preference."
                 "\n--- Information Base ---\n"
                 f"{knowledge_base}"
                 "\n------------------------\n"
@@ -59,19 +66,30 @@ def register_handlers(bot):
             chat_session = model.start_chat(history=chat_history)
             user_chats[uid] = chat_session
             user_state[uid] = "gemini_chat"
+            user_gemini_message_count[uid] = 0 # Initialize message count
             bot.send_message(call.message.chat.id, "Вы вошли в режим чата с AI. Задайте свой вопрос. Для выхода введите /cancel или /clear_chat")
         else:
             bot.delete_message(call.message.chat.id, call.message.message_id)
             show_submenu(call.message.chat.id, lang, call.data, bot)
         bot.answer_callback_query(call.id)
 
-    @bot.message_handler(func=lambda message: user_state.get(message.from_user.id) == "gemini_chat")
+    @bot.message_handler(func=lambda message: user_state.get(message.from_user.id) == "gemini_chat" and not message.text.startswith('/'))
     def handle_gemini_chat(message: types.Message):
+        uid = message.from_user.id
         try:
-            chat_session = user_chats.get(message.from_user.id)
+            chat_session = user_chats.get(uid)
             if chat_session:
                 response = chat_session.send_message(message.text)
                 bot.send_message(message.chat.id, response.text)
+
+                # Increment message count
+                user_gemini_message_count[uid] = user_gemini_message_count.get(uid, 0) + 1
+
+                # Check if message limit is reached
+                if user_gemini_message_count[uid] >= 50:
+                    user_chats.pop(uid, None)  # Clear chat history
+                    user_gemini_message_count.pop(uid, None) # Reset count
+                    bot.send_message(message.chat.id, "История чата с AI очищена, так как достигнут лимит в 50 сообщений. Вы можете начать новый чат.")
             else:
                 bot.send_message(message.chat.id, "Произошла ошибка. Пожалуйста, начните чат снова.")
         except Exception as e:
@@ -83,6 +101,7 @@ def register_handlers(bot):
         if user_state.get(uid) == "gemini_chat":
             user_state.pop(uid, None)
             user_chats.pop(uid, None)  # Clear chat history
+            user_gemini_message_count.pop(uid, None) # Clear message count
             lang = user_lang.get(uid, "ru")
             command = message.text.strip().lower()
             if command == '/clear_chat':
@@ -103,6 +122,7 @@ def register_handlers(bot):
         user_lang.pop(uid, None)
         user_state.pop(uid, None)
         user_chats.pop(uid, None)
+        user_gemini_message_count.pop(uid, None) # Clear message count
         # Send the initial language selection menu
         start(message)
 
