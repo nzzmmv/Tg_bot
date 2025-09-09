@@ -1,6 +1,7 @@
 import telebot # type: ignore
 from telebot import types # type: ignore
 import google.generativeai as genai
+import time
 from data import CATEGORIES, DATA
 from keyboards import send_main_menu, show_submenu
 from config import GEMINI_API_KEY
@@ -9,6 +10,7 @@ user_lang = {}
 user_state = {}
 user_chats = {}
 user_gemini_message_count = {}
+user_last_message_time = {}
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.0-flash')
@@ -77,6 +79,15 @@ def register_handlers(bot):
     @bot.message_handler(func=lambda message: user_state.get(message.from_user.id) == "gemini_chat" and not message.text.startswith('/'))
     def handle_gemini_chat(message: types.Message):
         uid = message.from_user.id
+        current_time = time.time()
+        last_message_time = user_last_message_time.get(uid, 0)
+
+        if current_time - last_message_time < 10:
+            bot.send_message(message.chat.id, "Пожалуйста, подождите 10 секунд перед отправкой нового сообщения.")
+            return
+
+        user_last_message_time[uid] = current_time
+
         try:
             chat_session = user_chats.get(uid)
             if chat_session:
